@@ -104,9 +104,9 @@ class SemanticClassifier(nn.Module):
             vocab_size,
             max_len,
 
-            d_model = 128,
+            d_model = 64,
             n_heads = 4,
-            ff_dim = 4 * 128,
+            ff_dim = 4 * 64,
             n_layers = 2,
             dropout=0.1
         ):

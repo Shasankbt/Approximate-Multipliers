@@ -1,93 +1,50 @@
-import json
-import re
-
-SPECIAL_TOKENS = {
-    "PAD": "<PAD>",
-    "UNK": "<UNK>",
-    "CLS": "<CLS>",
-    "SEP": "<SEP>",
-    "MASK": "<MASK>"
-}
+from transformers import BertTokenizer
 
 class Tokenizer:
-    def __init__(self, vocab_json=None):
-        if vocab_json:
-            with open(vocab_json, 'r') as f:
-                self.vocab = json.load(f)
-        else:
-            print("No vocabulary file provided. Initializing empty vocabulary. Provide texts to generate vocabulary.")
-            self.vocab = {}
-
+    def __init__(self, model_name='bert-base-uncased'):
+        """
+        Initialize tokenizer with pretrained BERT tokenizer from Hugging Face
+        Args:
+            model_name: HuggingFace model name (default: 'bert-base-uncased')
+        """
+        self.tokenizer_ = BertTokenizer.from_pretrained(model_name)
+        self.model_name_ = model_name
+        
+        # Set up special token IDs as class members
+        self.pad_id = self.tokenizer_.pad_token_id
+        self.mask_id = self.tokenizer_.mask_token_id
+        self.cls_id = self.tokenizer_.cls_token_id
+        self.sep_id = self.tokenizer_.sep_token_id
+        self.unk_id = self.tokenizer_.unk_token_id
+        
+        # Get the vocabulary
+        self.vocab = self.tokenizer_.vocab
+    
     def get_vocab_size(self):
+        """Returns the size of the vocabulary"""
         return len(self.vocab)
     
-    def _tokenize2(self, text):
-        '''
-            splits text into words and punctuation
-            eg: "Hello, world!" -> ["hello", ",", "world", "!"]
-        '''
-        text = text.lower().strip()
-        tokens = re.findall(r"\w+|[^\w\s]", text)
-        return tokens
-    
-    def _get_likely_tokens(self, texts, max_size):
-        """
-            Build WordPiece-like vocab from training corpus.
-            This is a simplified version:
-            1. Start with all characters.
-            2. Iteratively merge most frequent pairs until vocab_size.
-        """
-        vocab = set()
-
-        corpus_tokens = []
-        for text in texts:
-            for word in self._tokenize2(text):
-                word = word + "</w>"  # End of word token
-                corpus_tokens.append(list(word))
-                vocab.update(list(word))
-
-
-    def _tokenize(self, text):
-        text = text.lower().strip()
-        return text.split()
-
-    
-    
-    def generate_vocab(self, texts):
-        unique_tokens = set()
-        
-        for special_token in SPECIAL_TOKENS.values():
-            unique_tokens.add(special_token)
-
-        for text in texts:
-            tokens = self._tokenize(text)
-            unique_tokens.update(tokens)
-        
-        self.vocab = {token: idx for idx, token in enumerate(sorted(unique_tokens))}
-
-    def save_vocab(self, filepath):
-        with open(filepath, 'w') as f:
-            json.dump(self.vocab, f)
-
     def get_ids(self, text, pad_length=None):
-        tokens = self._tokenize(text)
-        tokens = [token if token in self.vocab else SPECIAL_TOKENS["UNK"] for token in tokens]
-
-        if pad_length is None:
-            pad_length = len(tokens) + 2
-        
-        if len(tokens) > pad_length - 2:
-            tokens = tokens[:pad_length - 2]
-        
-        ids = (
-            [self.vocab[SPECIAL_TOKENS["CLS"]]] +
-            [self.vocab[token] for token in tokens] +
-            [self.vocab[SPECIAL_TOKENS["PAD"]]] * (pad_length - len(tokens) - 2) +
-            [self.vocab[SPECIAL_TOKENS["SEP"]]]
-        )
+        """
+        Convert text to token IDs with CLS, SEP, padding and truncation
+        """
+        if pad_length is not None:
+            # Use built-in padding and truncation
+            ids = self.tokenizer_.encode(
+                text,
+                add_special_tokens=True,
+                max_length=pad_length,
+                padding='max_length',
+                truncation=True
+            )
+        else:
+            # No padding/truncation
+            ids = self.tokenizer_.encode(text, add_special_tokens=True)
+    
         return ids
     
-
     def convert_ids_to_tokens(self, ids):
-        inv_vocab = {v: k for k, v in self.vocab.items()}
-        return [inv_vocab[id] for id in ids if id in inv_vocab]
+        return self.tokenizer_.convert_ids_to_tokens(ids)
+    
+    def decode(self, ids, skip_special_tokens=True):
+        return self.tokenizer_.decode(ids, skip_special_tokens=skip_special_tokens)
