@@ -88,28 +88,43 @@ float approx_bfloat16_scalar(float f_a, float f_b) {
 }
 
 // ==========================================
-// PART 3: The Tensor Loop (What PyTorch Calls)
+// PART 3: The Tensor Matrix Multiplication
 // ==========================================
-// Iterates over the tensor and calls the scalar function for every element.
+// Performs actual matrix multiplication: [M, K] @ [K, N] -> [M, N]
 torch::Tensor pbo_product_tensor(torch::Tensor a, torch::Tensor b) {
-    // Check inputs are same size (or handled by Python broadcasting before this)
-    auto result = torch::zeros_like(a);
+    // Ensure inputs are contiguous and 2D
+    TORCH_CHECK(a.dim() == 2, "Input a must be 2D");
+    TORCH_CHECK(b.dim() == 2, "Input b must be 2D");
+    TORCH_CHECK(a.size(1) == b.size(0), "Inner dimensions must match");
     
-    // Get fast accessors (Assuming 2D inputs from your expansion code)
-    // .contiguous() is crucial in Python before calling this!
+    a = a.contiguous();
+    b = b.contiguous();
+    
+    int M = a.size(0);  // rows of a
+    int K = a.size(1);  // cols of a, rows of b
+    int N = b.size(1);  // cols of b
+    
+    // Create output tensor [M, N]
+    auto result = torch::zeros({M, N}, a.options());
+    
+    // Get accessors
     auto a_acc = a.accessor<float, 2>();
     auto b_acc = b.accessor<float, 2>();
     auto res_acc = result.accessor<float, 2>();
     
-    int rows = a.size(0);
-    int cols = a.size(1);
-
-    // OMP Parallel could be added here for speed, but keep it simple for now
-    for(int i = 0; i < rows; i++) {
-        for(int j = 0; j < cols; j++) {
-            res_acc[i][j] = approx_bfloat16_scalar(a_acc[i][j], b_acc[i][j]);
+    // Perform matrix multiplication with approximate multiplier
+    // C[i,j] = sum(A[i,k] * B[k,j]) for k=0 to K-1
+    for(int i = 0; i < M; i++) {
+        for(int j = 0; j < N; j++) {
+            float sum = 0.0f;
+            for(int k = 0; k < K; k++) {
+                // Use approximate multiplication for each element
+                sum += approx_bfloat16_scalar(a_acc[i][k], b_acc[k][j]);
+            }
+            res_acc[i][j] = sum;
         }
     }
+    
     return result;
 }
 

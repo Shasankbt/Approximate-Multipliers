@@ -1,9 +1,8 @@
 import torch
-from tokenizer import Tokenizer
 import pandas as pd
 
 class IMDB_Dataset:
-    def __init__(self, data_path, max_length, tokenizer = None):
+    def __init__(self, data_path, max_length, tokenizer):
         self.data_path = data_path
         self.tokenizer = tokenizer
         self.max_length = max_length
@@ -11,7 +10,7 @@ class IMDB_Dataset:
         self.labels = []
         self.load_data()
 
-    def set_tokenizer(self, tokenizer: Tokenizer):
+    def set_tokenizer(self, tokenizer):
         self.tokenizer = tokenizer
 
     def load_data(self):
