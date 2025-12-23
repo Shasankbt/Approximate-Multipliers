@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import time
 
 '''
 Matrix Multiplication Operations in PyTorch - Complete Coverage
@@ -87,7 +88,7 @@ class ApproximateMultiplier:
     
     def _approx_matmul(self, a, b):
         """Approximate version of matmul"""
-        print(f"shapes: {a.shape}, {b.shape}")
+        # print(f"shapes: {a.shape}, {b.shape}")
         if a.dim() == 2 and b.dim() == 2:
             a_batched = a.unsqueeze(0)  # [1, M, K]
             b_batched = b.unsqueeze(0)  # [1, K, N]
@@ -137,6 +138,8 @@ class ApproximateMultiplier:
     
     def _pbom8_2d(self, a, b):
         print(f"shape of inputs : {a.shape}, {b.shape}")
+        print(f"dtype of tensors: {a.dtype}")
+        t = time.time()
 
         B, M, K = a.shape
         B2, K2, N = b.shape
@@ -144,10 +147,20 @@ class ApproximateMultiplier:
         assert K == K2, f"Inner dimensions must match: {K} != {K2}"
         
         tensor_device = a.device
+        tensor_dtype = a.dtype
         a = a.to("cpu") 
         b = b.to("cpu")
+        a = a.to(torch.float16)
+        b = b.to(torch.float16)
+
+        print(f"conversion time: {time.time() - t}")
+        
         result = self.pbo_fn(a, b)
+
         result = result.to(tensor_device)
+        result = result.to(tensor_dtype)
+
+        print(f"time elapsed: {time.time() - t}")
         # print(f"shape of result: {result.shape}")
         # print(f"tensor: {result}")
         return result

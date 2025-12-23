@@ -1,5 +1,6 @@
 from torch.utils.cpp_extension import load
 import torch
+import time
 
 # 1. Compile
 # Make sure the file above is saved as "pbom8-73y/pbo_float.cpp"
@@ -21,5 +22,6 @@ from approximate_multiplier import ApproximateMultiplier
 am = ApproximateMultiplier(pbo_cpp.pbo_product)
 
 am.enable()
-
+t = time.time()
 run_evaluation()
+print(f"time of eval: {time.time() - t}")
