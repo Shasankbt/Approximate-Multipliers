@@ -92,39 +92,37 @@ float approx_bfloat16_scalar(float f_a, float f_b) {
 // ==========================================
 // Performs actual matrix multiplication: [M, K] @ [K, N] -> [M, N]
 torch::Tensor pbo_product_tensor(torch::Tensor a, torch::Tensor b) {
-    // Ensure inputs are contiguous and 2D
-    TORCH_CHECK(a.dim() == 2, "Input a must be 2D");
-    TORCH_CHECK(b.dim() == 2, "Input b must be 2D");
-    TORCH_CHECK(a.size(1) == b.size(0), "Inner dimensions must match");
+    TORCH_CHECK(a.dim() == 3, "Input a must be 3D");
+    TORCH_CHECK(b.dim() == 3, "Input b must be 3D");
+    TORCH_CHECK(a.size(0) == b.size(0), "Batch sizes must match");
+    TORCH_CHECK(a.size(2) == b.size(1), "Inner dimensions must match");
     
     a = a.contiguous();
     b = b.contiguous();
     
-    int M = a.size(0);  // rows of a
-    int K = a.size(1);  // cols of a, rows of b
-    int N = b.size(1);  // cols of b
+    int B = a.size(0);  // batch size
+    int M = a.size(1);  // rows of a
+    int K = a.size(2);  // cols of a, rows of b
+    int N = b.size(2);  // cols of b
     
-    // Create output tensor [M, N]
-    auto result = torch::zeros({M, N}, a.options());
+    auto result = torch::zeros({B, M, N}, a.options());
     
-    // Get accessors
-    auto a_acc = a.accessor<float, 2>();
-    auto b_acc = b.accessor<float, 2>();
-    auto res_acc = result.accessor<float, 2>();
+    auto a_acc = a.accessor<float, 3>();
+    auto b_acc = b.accessor<float, 3>();
+    auto res_acc = result.accessor<float, 3>();
     
-    // Perform matrix multiplication with approximate multiplier
-    // C[i,j] = sum(A[i,k] * B[k,j]) for k=0 to K-1
-    for(int i = 0; i < M; i++) {
-        for(int j = 0; j < N; j++) {
-            float sum = 0.0f;
-            for(int k = 0; k < K; k++) {
-                // Use approximate multiplication for each element
-                sum += approx_bfloat16_scalar(a_acc[i][k], b_acc[k][j]);
+    #pragma omp parallel for
+    for(int batch = 0; batch < B; batch++) {
+        for(int i = 0; i < M; i++) {
+            for(int j = 0; j < N; j++) {
+                float sum = 0.0f;
+                for(int k = 0; k < K; k++) {
+                    sum += approx_bfloat16_scalar(a_acc[batch][i][k], b_acc[batch][k][j]);
+                }
+                res_acc[batch][i][j] = sum;
             }
-            res_acc[i][j] = sum;
         }
     }
-    
     return result;
 }
 

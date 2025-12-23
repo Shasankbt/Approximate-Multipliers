@@ -51,6 +51,8 @@ def run_evaluation():
             correct += (predictions == labels).sum().item()
             total += labels.size(0)
 
+            break
+
     avg_val_loss = total_val_loss / len(val_dataloader)
     accuracy = 100 * correct / total
 

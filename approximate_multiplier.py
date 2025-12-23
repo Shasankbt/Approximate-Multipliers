@@ -86,66 +86,42 @@ class ApproximateMultiplier:
         print("<-- Exact multiplication restored -->")
     
     def _approx_matmul(self, a, b):
-        """
-        Universal Approximate Matmul.
-        Handles 2D, 3D, 4D, and Broadcasting (e.g., 3D @ 2D).
-        """
-        # 1. Handle cases where inputs are vectors (1D)
-        # torch.matmul handles these by temporarily adding dimensions
-        is_a_vec = a.dim() == 1
-        is_b_vec = b.dim() == 1
+        """Approximate version of matmul"""
+        print(f"shapes: {a.shape}, {b.shape}")
+        if a.dim() == 2 and b.dim() == 2:
+            a_batched = a.unsqueeze(0)  # [1, M, K]
+            b_batched = b.unsqueeze(0)  # [1, K, N]
+            return self._pbom8_2d(a_batched, b_batched).squeeze(0)
         
-        if is_a_vec: a = a.unsqueeze(0)
-        if is_b_vec: b = b.unsqueeze(1)
-
-        # 2. Get Matrix Dimensions (Last 2 dims)
-        M, K = a.shape[-2:]
-        K2, N = b.shape[-2:]
-        
-        if K != K2:
-            # Let PyTorch raise the error or handle it (fallback)
+        elif a.dim() == 3 and b.dim() == 2:
+            B, M, K = a.shape
+            K2, N = b.shape
+            assert K == K2
+            
+            # Expand b to match batch size: [K, N] -> [B, K, N]
+            b_batched = b.unsqueeze(0).expand(B, K, N)
+            result = self._pbom8_2d(a, b_batched)
+            return result  # [B, M, N]
+        elif a.dim() == 3 and b.dim() == 3:
+            assert a.shape[2] == b.shape[1]
+            return self._pbom8_2d(a, b)
+        elif a.dim() == 4 and b.dim() == 4:
+            B, H, M, K = a.shape
+            B2, H2, K2, N = b.shape
+            assert B == B2 and H == H2 and K == K2
+            
+            # Reshape: [B, H, M, K] -> [B*H, M, K]
+            a_3d = a.reshape(B * H, M, K)
+            b_3d = b.reshape(B * H, K, N)
+            
+            result_3d = self._pbom8_2d(a_3d.contiguous(), b_3d.contiguous())
+            
+            # Reshape back: [B*H, M, N] -> [B, H, M, N]
+            return result_3d.reshape(B, H, M, N)
+        else:
+            # Fallback for weird shapes
+            print("using original")
             return self.originals['matmul'](a, b)
-
-        # 3. Handle Batch Dimensions (Broadcasting)
-        # Example: a=[32, 10, 64], b=[64, 128] -> Batch dims: [32, 10] and []
-        batch_a = a.shape[:-2]
-        batch_b = b.shape[:-2]
-        
-        try:
-            # Calculate the combined batch shape (e.g. broadcasting [32, 10] + [] -> [32, 10])
-            common_batch_shape = torch.broadcast_shapes(batch_a, batch_b)
-        except RuntimeError:
-            print("Broadcasting failed, using original")
-            return self.originals['matmul'](a, b)
-            
-        # 4. Expand and Reshape to 3D: [Total_Batch, M, K] @ [Total_Batch, K, N]
-        # We merge all batch dimensions (Batch, Heads, Seq...) into one 'B' dimension
-        a_expanded = a.expand(common_batch_shape + (M, K))
-        b_expanded = b.expand(common_batch_shape + (K, N))
-        
-        a_flat = a_expanded.reshape(-1, M, K)
-        b_flat = b_expanded.reshape(-1, K, N)
-        
-        total_batch = a_flat.shape[0]
-        results = []
-
-        # 5. Run the Approximation Loop
-        # Note: This loop effectively processes [Batch * Heads * Seq] items
-        for i in range(total_batch):
-            results.append(self._pbom8_2d(a_flat[i], b_flat[i]))
-            
-        # 6. Reassemble
-        res_stacked = torch.stack(results, dim=0) # [Total_Batch, M, N]
-        
-        # Reshape back to [Common_Batch, M, N]
-        final_shape = common_batch_shape + (M, N)
-        res_shaped = res_stacked.view(final_shape)
-        
-        # 7. Remove dummy dimensions if inputs were vectors
-        if is_a_vec: res_shaped = res_shaped.squeeze(-2)
-        if is_b_vec: res_shaped = res_shaped.squeeze(-1)
-            
-        return res_shaped
     
     def _approx_linear(self, input, weight, bias=None):
         """Approximate version of F.linear"""
@@ -160,10 +136,11 @@ class ApproximateMultiplier:
         return _approx_tensor_matmul
     
     def _pbom8_2d(self, a, b):
-        # print(f"shape of inputs : {a}, {b}")
+        print(f"shape of inputs : {a.shape}, {b.shape}")
 
-        M, K = a.shape
-        K2, N = b.shape
+        B, M, K = a.shape
+        B2, K2, N = b.shape
+        assert B == B2, f"Batch sizes must must match: {B} != {B2}"
         assert K == K2, f"Inner dimensions must match: {K} != {K2}"
         
         tensor_device = a.device
