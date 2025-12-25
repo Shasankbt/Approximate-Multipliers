@@ -47,7 +47,8 @@ torch::Tensor pbo_product_tensor(torch::Tensor a, torch::Tensor b_t) {
 
                     float sum = 0.0f;
                     for (int64_t k = 0; k < K; ++k) {
-                        sum += A_row[k] * B_row[k]; // approx_half_scalar(A_row[k], B_row[k]);
+                        sum += A_row[k] * B_row[k]; // 
+                        sum += approx_half_scalar(A_row[k], B_row[k]);
                     }
                     acc[j] = sum;
                 }
@@ -64,6 +65,6 @@ torch::Tensor pbo_product_tensor(torch::Tensor a, torch::Tensor b_t) {
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("pbo_product", &pbo_product_tensor,
+    m.def("tensor_product", &pbo_product_tensor,
           "PBOM8-73Y approximate FP16 matmul (CPU)");
 }
