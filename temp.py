@@ -4,8 +4,15 @@ import time
 
 # 1. Compile
 # Make sure the file above is saved as "pbom8-73y/pbo_float.cpp"
-pbo_cpp = load(name="pbo_extension", sources=["pbom8-73y/pbo_float.cpp"], verbose=True)
-
+pbo_cpp = load(
+    name="pbo_extension",
+    sources=[
+        "pbom8-73y/matmul.cpp",
+        "pbom8-73y/multiplier.cpp"
+    ],
+    verbose=True,
+    extra_cflags=["-O3"]
+)
 # # 2. Test Data (2D Tensors)
 # a = torch.tensor([[2.2, 4.5], [10.0, 3.4]], dtype=torch.float32)
 # b = torch.tensor([[1.5, 2.0], [5.0, 3.2]], dtype=torch.float32)

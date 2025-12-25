@@ -137,8 +137,8 @@ class ApproximateMultiplier:
         return _approx_tensor_matmul
     
     def _pbom8_2d(self, a, b):
-        print(f"shape of inputs : {a.shape}, {b.shape}")
-        print(f"dtype of tensors: {a.dtype}")
+        # print(f"shape of inputs : {a.shape}, {b.shape}")
+        # print(f"dtype of tensors: {a.dtype}")
         t = time.time()
 
         B, M, K = a.shape
@@ -153,14 +153,14 @@ class ApproximateMultiplier:
         a = a.to(torch.float16)
         b = b.to(torch.float16)
 
-        print(f"conversion time: {time.time() - t}")
+        # print(f"conversion time: {time.time() - t}")
         
-        result = self.pbo_fn(a, b)
+        result = self.pbo_fn(a, torch.transpose(b, 1, 2))
 
         result = result.to(tensor_device)
         result = result.to(tensor_dtype)
 
-        print(f"time elapsed: {time.time() - t}")
+        # print(f"time elapsed: {time.time() - t}")
         # print(f"shape of result: {result.shape}")
         # print(f"tensor: {result}")
         return result
